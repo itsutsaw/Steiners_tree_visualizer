@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steiner tree DP visualizer — Dreyfus–Wagner</title>
+<style>
+  :root{
+    --paper:#f5f1e8;
+    --paper-line:#e2dbc9;
+    --ink:#2b2620;
+    --ink-soft:#6b6354;
+    --teal:#0f6e56;
+    --teal-light:#cfe8df;
+    --amber:#c4781f;
+    --amber-light:#f6e4cc;
+    --rose:#a13b3b;
+    --rose-light:#f3dcdc;
+    --paper-card:#fffdf6;
+    --line-strong:#3a332a;
+    --grid-edge:#cfc6b3;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family: 'Iowan Old Style','Georgia','Times New Roman',serif;
+    font-size:16px;
+    line-height:1.5;
+    padding:32px 24px 80px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  header{margin-bottom:28px;border-bottom:2px solid var(--line-strong);padding-bottom:18px;}
+  h1{
+    font-family:'Iowan Old Style','Georgia',serif;
+    font-weight:700;
+    font-size:34px;
+    letter-spacing:0.5px;
+    margin:0 0 6px 0;
+  }
+  .sub{
+    font-family: 'Courier New', monospace;
+    font-size:13px;
+    color:var(--ink-soft);
+    letter-spacing:0.5px;
+  }
+  .layout{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:24px;
+    align-items:start;
+  }
+  @media (max-width:880px){
+    .layout{grid-template-columns:1fr;}
+  }
+  .panel{
+    background:var(--paper-card);
+    border:1px solid var(--paper-line);
+    border-radius:6px;
+    padding:18px 20px;
+    box-shadow: 0 1px 0 var(--paper-line);
+  }
+  .panel h2{
+    font-size:18px;
+    margin:0 0 10px 0;
+    font-weight:700;
+    border-bottom:1px solid var(--paper-line);
+    padding-bottom:8px;
+  }
+  .panel h2 .tag{
+    font-family:'Courier New',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    font-weight:400;
+    margin-left:8px;
+  }
+
+  /* Controls */
+  .controls{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:center;}
+  button{
+    font-family:'Courier New',monospace;
+    font-size:13px;
+    background:var(--paper-card);
+    border:1px solid var(--line-strong);
+    color:var(--ink);
+    padding:7px 14px;
+    border-radius:4px;
+    cursor:pointer;
+    transition:background 0.12s ease, transform 0.05s ease;
+  }
+  button:hover{background:var(--amber-light);}
+  button:active{transform:translateY(1px);}
+  button:disabled{opacity:0.4; cursor:not-allowed;}
+  button.primary{
+    background:var(--teal);
+    color:#fdfdf8;
+    border-color:var(--teal);
+  }
+  button.primary:hover{background:#0c5b46;}
+  .speed{
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  input[type="range"]{width:90px;}
+
+  /* Graph */
+  svg{display:block; width:100%; height:auto;}
+  .node-circle{
+    fill:var(--paper-card);
+    stroke:var(--line-strong);
+    stroke-width:1.5;
+    transition: fill 0.25s ease, stroke 0.25s ease;
+  }
+  .node-circle.terminal{
+    fill:var(--rose-light);
+    stroke:var(--rose);
+    stroke-width:2;
+  }
+  .node-circle.in-tree{
+    fill:var(--teal-light);
+    stroke:var(--teal);
+  }
+  .node-circle.active{
+    stroke:var(--amber);
+    stroke-width:3;
+  }
+  .node-label{
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    fill:var(--ink);
+    text-anchor:middle;
+    dominant-baseline:central;
+    pointer-events:none;
+  }
+  .edge-line{
+    stroke:var(--grid-edge);
+    stroke-width:2;
+    transition: stroke 0.25s ease, stroke-width 0.25s ease;
+  }
+  .edge-line.in-tree{
+    stroke:var(--teal);
+    stroke-width:4;
+  }
+  .edge-line.active{
+    stroke:var(--amber);
+    stroke-width:4;
+    stroke-dasharray:6 4;
+  }
+  .edge-weight{
+    font-family:'Courier New',monospace;
+    font-size:11px;
+    fill:var(--ink-soft);
+    text-anchor:middle;
+  }
+  .edge-weight-bg{
+    fill:var(--paper-card);
+    opacity:0.85;
+  }
+
+  /* legend */
+  .legend{
+    display:flex; flex-wrap:wrap; gap:14px; margin-top:12px;
+    font-family:'Courier New',monospace; font-size:12px; color:var(--ink-soft);
+  }
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .swatch{width:14px; height:14px; border-radius:3px; display:inline-block; border:1.5px solid var(--line-strong);}
+
+  /* DP table */
+  .dp-scroll{overflow-x:auto; border:1px solid var(--paper-line); border-radius:4px;}
+  table.dp{
+    border-collapse:collapse;
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    width:100%;
+    min-width:520px;
+  }
+  table.dp th, table.dp td{
+    border:1px solid var(--paper-line);
+    padding:5px 8px;
+    text-align:center;
+    white-space:nowrap;
+  }
+  table.dp th{
+    background:var(--paper);
+    font-weight:700;
+    position:sticky;
+    top:0;
+  }
+  table.dp td.subset-col{
+    background:var(--paper);
+    font-weight:700;
+    text-align:left;
+    position:sticky;
+    left:0;
+  }
+  table.dp td.computed{
+    background:var(--teal-light);
+    color:var(--ink);
+  }
+  table.dp td.active-cell{
+    background:var(--amber-light);
+    outline:2px solid var(--amber);
+    outline-offset:-2px;
+  }
+  table.dp td.unset{
+    color:var(--ink-soft);
+  }
+
+  /* Step log */
+  .step-log{
+    margin-top:14px;
+    font-family:'Courier New',monospace;
+    font-size:13px;
+    background:var(--paper);
+    border:1px solid var(--paper-line);
+    border-radius:4px;
+    padding:12px 14px;
+    min-height:64px;
+    color:var(--ink);
+  }
+  .step-log .formula{
+    color:var(--teal);
+    font-weight:700;
+  }
+  .step-counter{
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-left:auto;
+  }
+
+  /* Recurrence reference */
+  .recurrence{
+    font-family:'Courier New',monospace;
+    font-size:13px;
+    background:var(--paper);
+    border:1px solid var(--paper-line);
+    border-radius:4px;
+    padding:14px 16px;
+    margin-top:16px;
+    line-height:1.8;
+    overflow-x:auto;
+  }
+  .recurrence .hi{color:var(--teal); font-weight:700;}
+
+  /* Pseudocode panel */
+  .code-panel{
+    font-family:'Courier New',monospace;
+    font-size:12.5px;
+    background:var(--paper);
+    border:1px solid var(--paper-line);
+    border-radius:4px;
+    padding:10px 0;
+    margin-top:16px;
+    overflow-x:auto;
+  }
+  .code-line{
+    display:flex;
+    padding:2px 14px;
+    white-space:pre;
+    color:var(--ink);
+  }
+  .code-line .ln{
+    color:var(--ink-soft);
+    width:28px;
+    flex-shrink:0;
+    text-align:right;
+    margin-right:14px;
+    user-select:none;
+  }
+  .code-line.active{
+    background:var(--amber-light);
+    border-left:3px solid var(--amber);
+    padding-left:11px;
+  }
+  .code-line.active .ln{
+    color:var(--amber);
+    font-weight:700;
+  }
+
+  footer{
+    margin-top:30px;
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    text-align:center;
+  }
+
+  .badge{
+    font-family:'Courier New',monospace;
+    font-size:11px;
+    background:var(--rose-light);
+    color:var(--rose);
+    border:1px solid var(--rose);
+    border-radius:3px;
+    padding:2px 6px;
+    margin-left:6px;
+  }
+
+  .hint{
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:4px 0 0 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Steiner tree DP visualizer</h1>
+    <div class="sub">Dreyfus&ndash;Wagner algorithm &mdash; subset DP over terminals on a small weighted graph</div>
+  </header>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Graph <span class="tag">click nodes to toggle terminals (red), then run</span></h2>
+      <div class="controls">
+        <button id="randomize">new random graph</button>
+        <button id="reset">reset run</button>
+        <button id="step" class="primary">step &rarr;</button>
+        <button id="play" class="primary">play</button>
+        <div class="speed">
+          speed
+          <input type="range" id="speedSlider" min="100" max="1200" value="500" step="50">
+        </div>
+      </div>
+      <svg id="graphSvg" viewBox="0 0 480 380" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--rose-light); border-color:var(--rose);"></i> terminal</span>
+        <span><i class="swatch" style="background:var(--teal-light); border-color:var(--teal);"></i> in current best tree</span>
+        <span><i class="swatch" style="background:var(--paper-card); border-color:var(--amber); border-width:3px;"></i> active node / edge</span>
+      </div>
+      <p class="hint" id="resultLine"></p>
+    </div>
+
+    <div class="panel">
+      <h2>DP table <span class="tag">dp[v][S] = min cost tree connecting v to all terminals in S</span></h2>
+      <div class="dp-scroll">
+        <table class="dp" id="dpTable"></table>
+      </div>
+      <div class="step-log" id="stepLog">
+        Press <strong>step</strong> or <strong>play</strong> to begin filling the DP table.
+        <div class="step-counter" id="stepCounter"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-panel" id="codePanel"></div>
+  <p class="hint" style="margin-top:8px;">The highlighted line shows which part of the algorithm the current step is executing.</p>
+
+  <footer>
+    Terminals are the dark-rose nodes. The table shows dp[v][S] for every node v (rows) and every non-empty subset S of terminals (columns). Cells fill in as the algorithm proceeds: base cases first, then subset merges, then full-graph shortest-path relaxations for each subset size.
+  </footer>
+</div>
+
+<script>
+(function(){
+
+  // ---------- Graph data ----------
+  // Small fixed-layout grid-ish graph: nodes with positions + weighted edges.
+  var NODE_COUNT = 8;
+  var nodes = [];
+  var edges = []; // {a,b,w}
+  var terminals = []; // indices, length 3 (kept small so 2^|T| is tiny)
+
+  var GRAPH_PRESETS = [
+    {
+      positions: [
+        [80,60],[240,40],[400,70],
+        [60,200],[230,200],[410,200],
+        [110,330],[360,330]
+      ],
+      edges: [
+        [0,1,4],[1,2,3],[0,3,2],[1,4,5],[2,5,2],
+        [3,4,3],[4,5,4],[3,6,4],[4,6,2],[4,7,3],[5,7,2],[6,7,5]
+      ],
+      terminals: [0,2,6]
+    },
+    {
+      positions: [
+        [60,60],[230,60],[400,60],
+        [60,200],[230,200],[400,200],
+        [140,330],[330,330]
+      ],
+      edges: [
+        [0,1,2],[1,2,4],[0,3,3],[1,4,2],[2,5,3],
+        [3,4,4],[4,5,1],[3,6,5],[4,6,3],[5,7,4],[4,7,5],[6,7,2]
+      ],
+      terminals: [0,5,6]
+    },
+    {
+      positions: [
+        [100,40],[280,40],[420,140],
+        [60,180],[240,180],[400,300],
+        [130,330],[320,330]
+      ],
+      edges: [
+        [0,1,3],[1,2,4],[0,3,2],[1,4,3],[2,5,2],
+        [3,4,5],[4,5,3],[3,6,2],[4,6,4],[4,7,2],[5,7,3],[6,7,5]
+      ],
+      terminals: [0,2,7]
+    }
+  ];
+
+  function loadPreset(p){
+    nodes = p.positions.map(function(pos,i){ return {id:i, x:pos[0], y:pos[1]}; });
+    edges = p.edges.map(function(e){ return {a:e[0], b:e[1], w:e[2]}; });
+    terminals = p.terminals.slice();
+  }
+
+  loadPreset(GRAPH_PRESETS[0]);
+
+  // ---------- Algorithm state ----------
+  var N, T; // node count, terminal count
+  var dist; // all-pairs shortest path matrix
+  var dp; // dp[v][maskIndex] -> cost or Infinity
+  var subsets; // list of bitmasks (non-empty subsets of terminals), index 0 unused conceptually
+  var steps; // queue of step objects to animate
+  var currentStepIndex;
+  var isPlaying = false;
+  var playTimer = null;
+
+  function buildDistanceMatrix(){
+    N = nodes.length;
+    dist = [];
+    for(var i=0;i<N;i++){
+      dist.push(new Array(N).fill(Infinity));
+      dist[i][i]=0;
+    }
+    edges.forEach(function(e){
+      if(e.w < dist[e.a][e.b]){
+        dist[e.a][e.b]=e.w;
+        dist[e.b][e.a]=e.w;
+      }
+    });
+    // Floyd-Warshall
+    for(var k=0;k<N;k++){
+      for(var i=0;i<N;i++){
+        for(var j=0;j<N;j++){
+          if(dist[i][k]+dist[k][j] < dist[i][j]){
+            dist[i][j]=dist[i][k]+dist[k][j];
+          }
+        }
+      }
+    }
+  }
+
+  function allSubsets(t){
+    var res=[];
+    for(var m=1;m<(1<<t);m++) res.push(m);
+    return res;
+  }
+
+  // Generate the full ordered list of steps the algorithm performs.
+  function buildSteps(){
+    T = terminals.length;
+    subsets = allSubsets(T);
+    dp = [];
+    for(var v=0;v<N;v++) dp.push(new Array(1<<T).fill(Infinity));
+
+    steps = [];
+
+    // 1. Base cases: dp[v][{t}] = dist(v, terminal_t)
+    for(var ti=0; ti<T; ti++){
+      var mask = 1<<ti;
+      for(var v=0; v<N; v++){
+        steps.push({
+          type:'base',
+          v:v, mask:mask, ti:ti,
+          value: dist[v][terminals[ti]]
+        });
+      }
+    }
+
+    // 2. For increasing subset size, do merge then relax
+    // group subsets by popcount, sizes 2..T
+    for(var size=2; size<=T; size++){
+      var subsOfSize = subsets.filter(function(m){ return popcount(m)===size; });
+      subsOfSize.forEach(function(mask){
+        // merge step for every v
+        for(var v=0; v<N; v++){
+          steps.push({type:'merge_start', v:v, mask:mask});
+          // iterate proper non-empty submasks
+          for(var s1 = (mask-1) & mask; s1>0; s1=(s1-1)&mask){
+            if(s1 < (mask ^ s1)) continue; // avoid duplicate pair, only need s1<=complement once... keep simple: just allow all, dedupe by s1<complement or equal handled
+            var s2 = mask ^ s1;
+            if(s2===0) continue;
+            steps.push({type:'merge_try', v:v, mask:mask, s1:s1, s2:s2});
+          }
+        }
+        // relax step for this mask (Dijkstra-like over all pairs, simplified to all-pairs relax)
+        steps.push({type:'relax_start', mask:mask});
+        for(var u=0;u<N;u++){
+          for(var v2=0; v2<N; v2++){
+            if(u===v2) continue;
+            steps.push({type:'relax_try', mask:mask, u:u, v:v2});
+          }
+        }
+      });
+    }
+
+    // 3. final answer
+    steps.push({type:'final'});
+
+    currentStepIndex = -1;
+  }
+
+  function popcount(x){
+    var c=0;
+    while(x){ c += x & 1; x >>= 1; }
+    return c;
+  }
+
+  function maskLabel(mask){
+    var parts=[];
+    for(var i=0;i<T;i++){
+      if(mask & (1<<i)) parts.push('t'+terminals[i]);
+    }
+    return '{'+parts.join(',')+'}';
+  }
+
+  // ---------- Execute one step (mutating dp), returns description ----------
+  function applyStep(step){
+    switch(step.type){
+      case 'base': {
+        var v=step.v, mask=step.mask, val=step.value;
+        var prev = dp[v][mask];
+        if(val < dp[v][mask]) dp[v][mask]=val;
+        return {
+          html: 'Base case: dp['+v+']['+maskLabel(mask)+'] = dist('+v+', '+terminals[step.ti]+') = '+fmt(val) +
+                (val < prev ? '' : ' &mdash; no improvement (already '+fmt(prev)+')'),
+          highlightNodes:[v, terminals[step.ti]],
+          highlightCell:{v:v, mask:mask}
+        };
+      }
+      case 'merge_start': {
+        return {
+          html: 'Considering dp['+step.v+']['+maskLabel(step.mask)+'] via subset merges&hellip;',
+          highlightCell:{v:step.v, mask:step.mask}
+        };
+      }
+      case 'merge_try': {
+        var v=step.v, mask=step.mask, s1=step.s1, s2=step.s2;
+        var candidate = dp[v][s1] + dp[v][s2];
+        var prev = dp[v][mask];
+        var improved = candidate < dp[v][mask];
+        if(improved) dp[v][mask]=candidate;
+        return {
+          html: '<span class="formula">dp['+v+']['+maskLabel(mask)+'] = min( dp['+v+']['+maskLabel(mask)+'], dp['+v+']['+maskLabel(s1)+'] + dp['+v+']['+maskLabel(s2)+'] )</span><br>'
+              + '= min( '+fmt(prev)+', '+fmt(dp[v][s1])+' + '+fmt(dp[v][s2])+' = '+fmt(candidate)+' ) '
+              + (improved ? '&rarr; updated to '+fmt(candidate) : '&rarr; stays '+fmt(prev)),
+          highlightCell:{v:v, mask:mask},
+          highlightExtraCells:[{v:v,mask:s1},{v:v,mask:s2}]
+        };
+      }
+      case 'relax_start': {
+        return {
+          html: 'Relaxing dp[&middot;]['+maskLabel(step.mask)+'] across all edges (shortest-path style)&hellip;'
+        };
+      }
+      case 'relax_try': {
+        var mask=step.mask, u=step.u, v=step.v;
+        var candidate = dp[u][mask] + dist[v][u];
+        var prev = dp[v][mask];
+        var improved = candidate < dp[v][mask];
+        if(improved) dp[v][mask]=candidate;
+        return {
+          html: '<span class="formula">dp['+v+']['+maskLabel(mask)+'] = min( dp['+v+']['+maskLabel(mask)+'], dp['+u+']['+maskLabel(mask)+'] + dist('+v+','+u+') )</span><br>'
+              + '= min( '+fmt(prev)+', '+fmt(dp[u][mask])+' + '+fmt(dist[v][u])+' = '+fmt(candidate)+' ) '
+              + (improved ? '&rarr; updated to '+fmt(candidate) : '&rarr; stays '+fmt(prev)),
+          highlightNodes:[u,v],
+          highlightCell:{v:v, mask:mask},
+          highlightExtraCells:[{v:u,mask:mask}]
+        };
+      }
+      case 'final': {
+        var fullMask = (1<<T)-1;
+        var best = Infinity, bestV=-1;
+        for(var v=0;v<N;v++){
+          if(dp[v][fullMask] < best){ best=dp[v][fullMask]; bestV=v; }
+        }
+        return {
+          html: '<span class="formula">Answer = min over v of dp[v]['+maskLabel(fullMask)+']</span><br>Optimal Steiner tree cost = '+fmt(best)+' (rooted near node '+bestV+')',
+          highlightCell:{v:bestV, mask:fullMask},
+          finalAnswer: best
+        };
+      }
+    }
+  }
+
+  function fmt(x){
+    if(x===Infinity) return '&infin;';
+    return String(x);
+  }
+
+  // ---------- Rendering ----------
+  var svg = document.getElementById('graphSvg');
+  var dpTable = document.getElementById('dpTable');
+  var stepLog = document.getElementById('stepLog');
+  var stepCounter = document.getElementById('stepCounter');
+  var resultLine = document.getElementById('resultLine');
+  var codePanel = document.getElementById('codePanel');
+
+  var NODE_R = 16;
+
+  // Pseudocode lines, 1-indexed for display. Each step type maps to a line number below.
+  var CODE_LINES = [
+    'for each terminal t:',
+    '  for each node v:',
+    '    dp[v][{t}] = dist(v, t)              // base case',
+    '',
+    'for size = 2 to |terminals|:',
+    '  for each subset S with |S| == size:',
+    '    for each node v:',
+    '      for each split S = S1 \u222a S2:',
+    '        dp[v][S] = min(dp[v][S], dp[v][S1] + dp[v][S2])   // merge',
+    '    for each node u, node v:',
+    '      dp[v][S] = min(dp[v][S], dp[u][S] + dist(v, u))     // relax',
+    '',
+    'answer = min over v of dp[v][full set]'
+  ];
+
+  var STEP_TYPE_TO_LINE = {
+    'base': 3,
+    'merge_start': 6,
+    'merge_try': 9,
+    'relax_start': 10,
+    'relax_try': 11,
+    'final': 13
+  };
+
+  function renderCodePanel(stepType){
+    var activeLine = stepType ? STEP_TYPE_TO_LINE[stepType] : null;
+    var html = '';
+    CODE_LINES.forEach(function(line, i){
+      var lineNum = i+1;
+      var isActive = activeLine===lineNum;
+      html += '<div class="code-line'+(isActive?' active':'')+'">'
+            + '<span class="ln">'+lineNum+'</span>'
+            + '<span>'+escapeHtml(line)+'</span>'
+            + '</div>';
+    });
+    codePanel.innerHTML = html;
+    if(activeLine!==null){
+      var activeEl = codePanel.querySelector('.code-line.active');
+      if(activeEl) activeEl.scrollIntoView({block:'nearest'});
+    }
+  }
+
+  function escapeHtml(s){
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderGraph(highlight){
+    highlight = highlight || {};
+    var html = '';
+    // edges first
+    edges.forEach(function(e, idx){
+      var na = nodes[e.a], nb = nodes[e.b];
+      var isActiveEdge = highlight.edgeKey && highlight.edgeKey===(Math.min(e.a,e.b)+'-'+Math.max(e.a,e.b));
+      var cls = 'edge-line' + (isActiveEdge ? ' active' : '');
+      html += '<line class="'+cls+'" x1="'+na.x+'" y1="'+na.y+'" x2="'+nb.x+'" y2="'+nb.y+'"></line>';
+      var mx=(na.x+nb.x)/2, my=(na.y+nb.y)/2;
+      html += '<rect class="edge-weight-bg" x="'+(mx-9)+'" y="'+(my-9)+'" width="18" height="14" rx="3"></rect>';
+      html += '<text class="edge-weight" x="'+mx+'" y="'+(my+2)+'">'+e.w+'</text>';
+    });
+    // nodes
+    nodes.forEach(function(n, idx){
+      var isTerminal = terminals.indexOf(idx) !== -1;
+      var isActive = (highlight.nodes || []).indexOf(idx) !== -1;
+      var cls = 'node-circle';
+      if(isTerminal) cls += ' terminal';
+      if(isActive) cls += ' active';
+      html += '<g class="node-group" data-node="'+idx+'" style="cursor:pointer;">';
+      html += '<circle class="'+cls+'" cx="'+n.x+'" cy="'+n.y+'" r="'+NODE_R+'"></circle>';
+      html += '<text class="node-label" x="'+n.x+'" y="'+n.y+'">'+idx+'</text>';
+      html += '</g>';
+    });
+    svg.innerHTML = html;
+  }
+
+  function renderTable(highlight){
+    highlight = highlight || {};
+    var html = '<thead><tr><th>v \\ S</th>';
+    subsets.forEach(function(m){
+      html += '<th>'+maskLabel(m)+'</th>';
+    });
+    html += '</tr></thead><tbody>';
+    for(var v=0; v<N; v++){
+      html += '<tr><td class="subset-col">'+v+'</td>';
+      subsets.forEach(function(m){
+        var val = dp[v][m];
+        var cls = '';
+        if(val !== Infinity) cls += ' computed';
+        if(highlight.cell && highlight.cell.v===v && highlight.cell.mask===m) cls += ' active-cell';
+        if(highlight.extra && highlight.extra.some(function(c){return c.v===v && c.mask===m;})) cls += ' active-cell';
+        if(val === Infinity) cls += ' unset';
+        html += '<td class="'+cls.trim()+'">'+fmt(val)+'</td>';
+      });
+      html += '</tr>';
+    }
+    html += '</tbody>';
+    dpTable.innerHTML = html;
+  }
+
+  function renderStepLog(desc){
+    var counterText = (currentStepIndex+1)+' / '+steps.length;
+    if(!desc){
+      stepLog.innerHTML = 'Press <strong>step</strong> or <strong>play</strong> to begin filling the DP table.'
+        + '<div class="step-counter">'+counterText+'</div>';
+      return;
+    }
+    stepLog.innerHTML = desc.html + '<div class="step-counter">'+counterText+'</div>';
+  }
+
+  function computeHighlightedTreeEdges(){
+    // After final step, walk dp to highlight a plausible Steiner tree:
+    // simplistic: highlight terminal nodes and any edges on shortest paths
+    // between terminals through the optimal root. Kept light for clarity.
+    return {};
+  }
+
+  // ---------- Step navigation ----------
+  function gotoStep(idx){
+    if(idx < -1) idx = -1;
+    if(idx >= steps.length) idx = steps.length-1;
+
+    // Rebuild dp by replaying from scratch up to idx (simple + correct)
+    var savedTerminals = terminals, savedT = T;
+    buildSteps(); // resets dp + steps array structure (idempotent, same order)
+    var lastDesc = null;
+    var highlight = {nodes:[], cell:null, extra:[]};
+    for(var i=0;i<=idx;i++){
+      var desc = applyStep(steps[i]);
+      lastDesc = desc;
+      if(i===idx){
+        highlight.nodes = desc.highlightNodes || [];
+        highlight.cell = desc.highlightCell || null;
+        highlight.extra = desc.highlightExtraCells || [];
+      }
+    }
+    currentStepIndex = idx;
+    renderGraph(highlight);
+    renderTable(highlight);
+    renderStepLog(idx>=0 ? lastDesc : null);
+    renderCodePanel(idx>=0 ? steps[idx].type : null);
+
+    if(idx===steps.length-1 && lastDesc && lastDesc.finalAnswer!==undefined){
+      resultLine.textContent = 'Optimal Steiner tree cost connecting terminals '+terminals.join(', ')+' = '+lastDesc.finalAnswer;
+    } else {
+      resultLine.textContent = '';
+    }
+
+    document.getElementById('step').disabled = (idx>=steps.length-1);
+    document.getElementById('play').disabled = (idx>=steps.length-1);
+  }
+
+  function stepForward(){
+    if(currentStepIndex >= steps.length-1) { stopPlaying(); return; }
+    gotoStep(currentStepIndex+1);
+  }
+
+  function stopPlaying(){
+    isPlaying = false;
+    document.getElementById('play').textContent = 'play';
+    if(playTimer){ clearTimeout(playTimer); playTimer=null; }
+  }
+
+  function togglePlay(){
+    if(isPlaying){
+      stopPlaying();
+      return;
+    }
+    isPlaying = true;
+    document.getElementById('play').textContent = 'pause';
+    tickPlay();
+  }
+
+  function tickPlay(){
+    if(!isPlaying) return;
+    if(currentStepIndex >= steps.length-1){ stopPlaying(); return; }
+    stepForward();
+    var speed = 1300 - parseInt(document.getElementById('speedSlider').value, 10);
+    playTimer = setTimeout(tickPlay, speed);
+  }
+
+  function resetRun(){
+    stopPlaying();
+    buildDistanceMatrix();
+    buildSteps();
+    gotoStep(-1);
+  }
+
+  function randomizeGraph(){
+    var p = GRAPH_PRESETS[Math.floor(Math.random()*GRAPH_PRESETS.length)];
+    loadPreset(p);
+    resetRun();
+    renderGraph({});
+  }
+
+  function toggleTerminal(nodeIdx){
+    var pos = terminals.indexOf(nodeIdx);
+    if(pos !== -1){
+      if(terminals.length > 2) terminals.splice(pos,1);
+    } else {
+      if(terminals.length < 4) terminals.push(nodeIdx);
+    }
+    terminals.sort(function(a,b){return a-b;});
+    resetRun();
+    renderGraph({});
+  }
+
+  // node click handling (delegated, since svg re-renders)
+  svg.addEventListener('click', function(ev){
+    var g = ev.target.closest && ev.target.closest('.node-group');
+    if(g){
+      var idx = parseInt(g.getAttribute('data-node'), 10);
+      if(!isNaN(idx)) toggleTerminal(idx);
+    }
+  });
+
+  document.getElementById('step').addEventListener('click', stepForward);
+  document.getElementById('play').addEventListener('click', togglePlay);
+  document.getElementById('reset').addEventListener('click', resetRun);
+  document.getElementById('randomize').addEventListener('click', randomizeGraph);
+
+  // ---------- init ----------
+  resetRun();
+  renderGraph({});
+
+})();
+</script>
+</body>
+</html>
